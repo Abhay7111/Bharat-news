@@ -2,8 +2,17 @@
 
 *{
      color: white;
+     font-family:  'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
 }
 
 ::-webkit-scrollbar {
     display: none;
 }
+/* 
+.bgimage{
+    background-image: url(./assets/backgroundimage.png);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    background-blend-mode: overlay;
+} */
