@@ -18,7 +18,7 @@ function Storys() {
 
   return (
     <div className='w-full py-2 overflow-auto'>
-      <div className='w-fit h-full gap-2 flex items-center justify-start'>
+      <div className='w-fit h-full gap-5 flex items-center justify-start'>
         {stories.map((items, index) => (
           <div className='size-14 rounded-full bg-transparent border-2 border-zinc-50'>
             <img src={items.image} className='w-full h-full rounded-full object-fill' />

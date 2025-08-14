@@ -1,4 +1,5 @@
 import React from 'react';
+import { NavLink } from 'react-router';
 
 function Mostviews_citys() {
 
@@ -19,10 +20,10 @@ function Mostviews_citys() {
           <div className='grid grid-cols-3 gap-2'>
                {cities.map((city) => (
                     <div key={city.id} className={`flex flex-col items-${city.pos} justify-center bg-transparent rounded-md p-2`}>
-                         <div className={`${city.view} relative`}>
+                         <NavLink to={`${city.name}`} className={`${city.view} relative rounded-full`}>
                               <img src={city.img} alt={city.name} className={`${city.view} z-0 object-cover absolute top-0 left-0 rounded-full mb-2 `} />
                               <p className='relative z-10 tracking-tight leading-none w-full text-center top-full mt-1 font-medium text-xs '>{city.name} </p>
-                         </div>
+                         </NavLink>
                     </div>
                ))}
           </div>
