@@ -52,7 +52,7 @@ function Allnews() {
      ]
   return (
     <>{news.map((items)=> (
-     <div className='w-full mt-5 min-h-20 flex flex-col items-center justify-start'>
+     <div className='w-full mt-5 min-h-20 flex flex-col items-center justify-start overflow-hidden'>
           <div className='w-full h-10 flex items-center justify-between gap-2'>
                <div className='flex gap-2 items-start'>
                     <NavLink to={`${items.cityname}`} className='size-9 bg-blue-400 rounded-full'><img src={items.logo} className='w-full h-full object-cover rounded-full' /></NavLink>
@@ -74,7 +74,7 @@ function Allnews() {
                     <p className='text-xs font-extralight' title={`${items.view} peopls readed`}>R: {items.view}</p>
                </NavLink>
                <div className='w-full flex flex-col'>
-                    <h2 className='text-xl text-nowrap w-full h-fit'>{items.title}</h2>
+                    <NavLink to={`${items.cityname}/${items.title}`} className='text-xl text-nowrap w-full h-fit overflow-hidden'>{items.title}</NavLink>
                     <div className='flex gap-2 '>
                          {items.tag.map((tag) => (
                          <NavLink to={`tag/${tag.name}`} className=''>#{tag.name}</NavLink>

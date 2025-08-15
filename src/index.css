@@ -1,18 +1,21 @@
 @import "tailwindcss";
 
 *{
-     color: white;
      font-family:  'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+html, body, #root{
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #27272a;
 }
 
 ::-webkit-scrollbar {
     display: none;
 }
-/* 
-.bgimage{
-    background-image: url(./assets/backgroundimage.png);
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 100% 100%;
-    background-blend-mode: overlay;
-} */
+
+.heightminus{
+    height: calc(100dvh - 68px);
+}
