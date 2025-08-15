@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "tailwind-corner-smoothing";
 
 *{
      font-family:  'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
@@ -18,4 +19,57 @@ html, body, #root{
 
 .heightminus{
     height: calc(100dvh - 68px);
+}
+
+.animatebgl{
+    animation: animatebgl 60s linear infinite;
+}
+
+@keyframes animatebgl {
+    0%, 100%{
+        top: 0px;
+       }
+    20%{
+        top: 200px;
+        left: 30%;
+    }
+    40%{
+        top: 0px;
+        left: 90%;
+    }
+    60%{
+        top: -50px;
+        left: 30%;
+    }
+    80%{
+        top: -100px;
+        left: 10%;
+    }
+    
+}
+.animatebgr{
+    animation: animatebgr 45s linear infinite;
+}
+
+@keyframes animatebgr {
+    0%, 100%{
+        top: 0px;
+       }
+    20%{
+        top: 200px;
+        right: 30%;
+    }
+    40%{
+        top: 0px;
+        right: 90%;
+    }
+    60%{
+        top: -50px;
+        right: 30%;
+    }
+    80%{
+        top: -100px;
+        right: 10%;
+    }
+    
 }

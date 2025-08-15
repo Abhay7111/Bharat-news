@@ -6,7 +6,7 @@ import Home from './Components/Pages/Home';
 import News from './Components/Pages/News';
 import Chat from './Components/Pages/Chat/Chat';
 import Allnews from './Components/Small-components/Allnews';
-import Wether from './Components/Small-components/Wether';
+import Weather from './Components/Pages/weather';
 import Mostviews_citys from './Components/Small-components/Mostviews-citys';
 
 const routers = createBrowserRouter([
@@ -14,7 +14,7 @@ const routers = createBrowserRouter([
     {path: '', element: <News/>, children: [
       {path: '', element: <div><Mostviews_citys/></div>},
       {path: 'all', element: <div><Mostviews_citys/><Allnews/></div>},
-      {path: 'wether', element: <Wether/>},
+      {path: 'wether', element: <Weather/>},
       {path: '*', element: 'Error 402'}
     ]},
     {path:'/chat', element: <Chat/>},
