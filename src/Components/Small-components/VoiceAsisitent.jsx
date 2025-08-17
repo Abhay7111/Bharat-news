@@ -22,7 +22,7 @@ const VoiceAssistant = () => {
     {
       id: '2',
       question: 'what is your name',
-      answer: 'My name is Bharat AI assistant.',
+      answer: 'My name is Bharat news AI assistant.',
       open:false,
       link: '',
       image: '',
