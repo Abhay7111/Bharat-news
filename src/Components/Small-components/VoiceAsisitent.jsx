@@ -107,14 +107,20 @@ const VoiceAssistant = () => {
       return;
     }
 
-    // Try to match exact question
-    const found = latestData.find(item =>
-      item.question &&
-      lowerMsg.includes(item.question.toLowerCase()) // Loose match
-    );
+    // Only return the data item whose question exactly matches the input (case-insensitive, trimmed)
+    let matchedItem = null;
+    for (const item of latestData) {
+      if (item.question) {
+        const q = item.question.trim().toLowerCase();
+        if (lowerMsg === q) {
+          matchedItem = item;
+          break;
+        }
+      }
+    }
 
-    if (found) {
-      const { answer, link, image, file, open } = found;
+    if (matchedItem) {
+      const { answer, link, image, file, open } = matchedItem;
       setChatHistory(prev => [
         ...prev,
         {
