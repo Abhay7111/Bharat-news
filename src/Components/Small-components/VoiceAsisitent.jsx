@@ -1,5 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import Markdown from 'react-markdown';
+
+// Utility: Convert Markdown to plain text for speech
+function markdownToSpeechText(markdown) {
+  let text = markdown.replace(/```[\s\S]*?```/g, '');
+  text = text.replace(/`([^`]+)`/g, '$1');
+  text = text.replace(/^#+\s*(.*)$/gm, '$1');
+  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2');
+  text = text.replace(/(\*|_)(.*?)\1/g, '$2');
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1, link: $2');
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+  text = text.replace(/^\s*>\s?/gm, '');
+  text = text.replace(/^\s*[-*+]\s+/gm, '');
+  text = text.replace(/^\s*\d+\.\s+/gm, '');
+  text = text.replace(/^---$/gm, '');
+  text = text.replace(/\n{2,}/g, '. ');
+  text = text.replace(/[#>*_`]/g, '');
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+}
 
 const VoiceAssistant = () => {
   const [message, setMessage] = useState('');
@@ -18,11 +38,16 @@ const VoiceAssistant = () => {
   const [showCategory, setShowCategory] = useState(false);
   const [categories, setCategories] = useState([]);
 
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+
   const apiTimeoutRef = useRef(null);
   const apiFallbackSpokenRef = useRef(false);
 
-  // Track if data has been loaded at least once
   const dataLoadedRef = useRef(false);
+  const lastCommandFromInputRef = useRef(false);
 
   // Helper: get a voice, fallback to default if not found
   const getVoice = () => {
@@ -37,11 +62,16 @@ const VoiceAssistant = () => {
   };
 
   // Speak function with fallback for voices not loaded
-  const speak = (text) => {
+  const speak = (text, isMarkdown = false) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
 
-    const utterance = new window.SpeechSynthesisUtterance(text);
+    let speakText = text;
+    if (isMarkdown) {
+      speakText = markdownToSpeechText(text);
+    }
+
+    const utterance = new window.SpeechSynthesisUtterance(speakText);
     utterance.rate = 1.1;
     utterance.pitch = 1;
     utterance.volume = 1;
@@ -76,7 +106,7 @@ const VoiceAssistant = () => {
   };
 
   // Main command handler
-  const takeCommand = async (msg) => {
+  const takeCommand = async (msg, { fromInput = false } = {}) => {
     setListening(false);
     const lowerMsg = msg.trim().toLowerCase();
     setChatHistory(prev => [...prev, { type: 'user', text: msg }]);
@@ -89,13 +119,13 @@ const VoiceAssistant = () => {
       setData(latestData); // update state for UI/category list
     } catch (err) {
       setError('Failed to load assistant data for voice command.');
-      speak('Sorry, I failed to load my brain.');
+      if (!fromInput) speak('Sorry, I failed to load my brain.');
       // Fallback: Google search
       const cleaned = lowerMsg.replace(/shipra|shifra/gi, '').trim();
       const fallbackText = cleaned
         ? 'This is what I found on Google: ' + cleaned
         : "Sorry, I didn't understand. Please try again.";
-      speak(fallbackText);
+      if (!fromInput) speak(fallbackText);
       setChatHistory(prev => [...prev, { type: 'bot', text: fallbackText }]);
       if (cleaned) {
         setGoogleSearchQuery(cleaned);
@@ -132,7 +162,8 @@ const VoiceAssistant = () => {
           open
         }
       ]);
-      speak(answer);
+      // Speak the answer as markdown, only if not from input
+      if (!fromInput) speak(answer, true);
       if (open && link) {
         window.open(link, '_blank');
       }
@@ -143,7 +174,7 @@ const VoiceAssistant = () => {
 
     // Built-in commands
     if (lowerMsg.includes('play music')) {
-      speak('Playing music...');
+      if (!fromInput) speak('Playing music...');
       window.open('https://www.youtube.com/watch?v=2Vv-BfVoq4g', '_blank');
       setChatHistory(prev => [
         ...prev,
@@ -155,7 +186,7 @@ const VoiceAssistant = () => {
     }
     if (lowerMsg.includes('time')) {
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      speak(`The time is ${time}`);
+      if (!fromInput) speak(`The time is ${time}`);
       setChatHistory(prev => [...prev, { type: 'bot', text: `The time is ${time}` }]);
       setGoogleSearchQuery('');
       setShowGoogleButton(false);
@@ -163,7 +194,7 @@ const VoiceAssistant = () => {
     }
     if (lowerMsg.includes('date')) {
       const date = new Date().toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
-      speak(`Today's date is ${date}`);
+      if (!fromInput) speak(`Today's date is ${date}`);
       setChatHistory(prev => [...prev, { type: 'bot', text: `Today's date is ${date}` }]);
       setGoogleSearchQuery('');
       setShowGoogleButton(false);
@@ -175,7 +206,7 @@ const VoiceAssistant = () => {
     const fallbackText = cleaned
       ? 'This is what I found on Google: ' + cleaned
       : "Sorry, I didn't understand. Please try again.";
-    speak(fallbackText);
+    if (!fromInput) speak(fallbackText);
     setChatHistory(prev => [...prev, { type: 'bot', text: fallbackText }]);
     if (cleaned) {
       setGoogleSearchQuery(cleaned);
@@ -191,7 +222,6 @@ const VoiceAssistant = () => {
     setError('');
     setLoading(true);
     try {
-      // Always fetch data from API when starting to listen
       const res = await axios.get('https://server-01-v2cx.onrender.com/getassistant');
       setData(Array.isArray(res.data) ? res.data : []);
       setLoading(false);
@@ -223,9 +253,13 @@ const VoiceAssistant = () => {
         setShowCategory(true);
         return;
       }
-      takeCommand(message);
+      lastCommandFromInputRef.current = true;
+      takeCommand(message, { fromInput: true });
       setMessage('');
       setShowCategory(false);
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setActiveSuggestion(-1);
     }
   };
 
@@ -236,9 +270,67 @@ const VoiceAssistant = () => {
     }
   };
 
+  // Autocomplete: handle input change
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setMessage(val);
+
+    // Only show suggestions if input is not empty and data is loaded
+    if (val.trim().length > 0 && data && data.length > 0) {
+      // Find questions that start with the input (case-insensitive)
+      const inputLower = val.trim().toLowerCase();
+      const filtered = data
+        .filter(item => item.question && item.question.toLowerCase().startsWith(inputLower))
+        .map(item => item.question);
+
+      setSuggestions(filtered.slice(0, 8)); // limit to 8 suggestions
+      setShowSuggestions(filtered.length > 0);
+      setActiveSuggestion(-1);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setActiveSuggestion(-1);
+    }
+  };
+
+  // Autocomplete: handle suggestion click
+  const handleSuggestionClick = (suggestion) => {
+    setMessage(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveSuggestion(-1);
+  };
+
+  // Autocomplete: handle keyboard navigation
+  const handleInputKeyDown = (e) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveSuggestion(prev =>
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveSuggestion(prev =>
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+      } else if (e.key === 'Enter') {
+        if (activeSuggestion >= 0 && activeSuggestion < suggestions.length) {
+          e.preventDefault();
+          setMessage(suggestions[activeSuggestion]);
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setActiveSuggestion(-1);
+        }
+      } else if (e.key === 'Escape') {
+        setShowSuggestions(false);
+        setActiveSuggestion(-1);
+      }
+    }
+  };
+
   // Setup speech recognition
   useEffect(() => {
-    // Only wish once, and only after voices are loaded
     if (window.speechSynthesis.getVoices().length === 0) {
       window.speechSynthesis.onvoiceschanged = wishMe;
     } else {
@@ -253,7 +345,6 @@ const VoiceAssistant = () => {
       return;
     }
 
-    // Fix: Always create a new instance and assign to ref
     let recognition;
     try {
       recognition = new SpeechRecognition();
@@ -269,14 +360,13 @@ const VoiceAssistant = () => {
       setListening(false);
       if (event.results && event.results[0] && event.results[0][0]) {
         const transcript = event.results[0][0].transcript;
-        // Use async takeCommand to ensure API fetch
-        takeCommand(transcript);
+        lastCommandFromInputRef.current = false;
+        takeCommand(transcript, { fromInput: false });
       }
     };
 
     recognition.onerror = (event) => {
       setListening(false);
-      // Chrome bug: "no-speech" error fires if mic permission denied or no input
       if (event.error === 'not-allowed' || event.error === 'denied') {
         setError('Microphone access denied. Please allow microphone permission.');
       } else if (event.error === 'no-speech') {
@@ -292,7 +382,6 @@ const VoiceAssistant = () => {
 
     recognitionRef.current = recognition;
 
-    // Clean up on unmount
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.onresult = null;
@@ -369,6 +458,15 @@ const VoiceAssistant = () => {
     }
   }, [message]);
 
+  // Hide suggestions if message is cleared
+  useEffect(() => {
+    if (message.trim().length === 0) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setActiveSuggestion(-1);
+    }
+  }, [message]);
+
   // Scroll to bottom on new chat
   useEffect(() => {
     if (chatEndRef.current) {
@@ -382,6 +480,9 @@ const VoiceAssistant = () => {
   const handleCategoryClick = (cat) => {
     setMessage(cat + ' ');
     setShowCategory(false);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveSuggestion(-1);
   };
 
   return (
@@ -390,18 +491,41 @@ const VoiceAssistant = () => {
         <div className="mb-2 text-red-400 bg-transparent rounded px-3 py-2 text-lg">{error}</div>
       )}
       {/* Chat History */}
-      <div className="flex flex-col gap-2 overflow-y-auto h-full mb-4 scroll-smooth">
-        {chatHistory.map((chat, index) => (
+      <div className="flex flex-col gap-2 overflow-y-auto h-full mb-4 scroll-smooth relative">
+        {chatHistory.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 z-20 rounded-lg">
+            <span className="text-white text-lg font-semibold">No messages yet. Start a conversation!</span>
+          </div>
+        )}
+        {chatHistory.length > 0 && chatHistory.map((chat, index) => (
           <div
             key={index}
             className={`w-full flex ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[75%] px-4 py-2 rounded-lg text-white break-words text-sm ${
-                chat.type === 'user' ? 'bg-green-600' : 'bg-blue-600'
+              className={`max-w-[95%] px-3 py-0.5 rounded-lg break-words text-sm ${
+                chat.type === 'user' ? 'bg-transparent border border-zinc-700/20 text-zinc-400 min-h-10 flex items-center justify-center' : 'bg-transparent border border-zinc-700/30 py-2.5 text-zinc-200'
               }`}
             >
-              {chat.text && <div className="mb-1"><p>{chat.text}</p></div>}
+              <div className="relative mb-1">
+                {chat.text && (
+                  <div className='flex items-start justify-start gap-2'>
+                    <div className="markdown"><Markdown target='_blank'>{chat.text}</Markdown> </div>
+                    {chat.type === 'user' ? '' : <button
+                      type="button"
+                      className=" w-4 bg-transparent cursor-pointer transition-all duration-300 text-zinc-600 hover:text-zinc-200"
+                      title="Copy to clipboard"
+                      onClick={() => {
+                        if (typeof chat.text === 'string') {
+                          navigator.clipboard.writeText(chat.text);
+                        }
+                      }}
+                    >
+                      <i className='ri-file-copy-2-line text-xl'></i>
+                    </button>}
+                  </div>
+                )}
+              </div>
 
               {chat.link && (
                 <a
@@ -462,34 +586,74 @@ const VoiceAssistant = () => {
 
       {/* Google Search Results */}
       {googleSearchQuery && (
-        <div className="mb-4 w-full max-w-full rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-900" style={{ height: 400 }}>
+        <div className="mb-5 w-full max-w-full rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-900 h-[95vh]" >
           <iframe
             title="Google Search"
             src={`https://www.bing.com/search?q=${encodeURIComponent(googleSearchQuery)}`}
             style={{ width: '100%', height: '100%', border: 'none' }}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
-          <div className="flex justify-end p-2 bg-zinc-900 ">
-            <button
-              onClick={handleOpenGoogle}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs"
-            >
-              Open in Google
-            </button>
-          </div>
         </div>
       )}
 
       {/* Input & Buttons */}
       <form onSubmit={handleInputSubmit} className="flex gap-2 w-full relative">
-        <input
-          type="text"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ask a question..."
-          className="flex-1 p-3 border border-gray-300/30 text-white bg-zinc-800 rounded-md focus:outline-none focus:ring focus:ring-zinc-500"
-          autoComplete="off"
-        />
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            value={message}
+            onChange={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Ask a question..."
+            className="w-full p-3 border border-gray-300/30 text-white bg-zinc-800 rounded-md focus:outline-none focus:ring focus:ring-zinc-500"
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-controls="autocomplete-list"
+            aria-activedescendant={activeSuggestion >= 0 ? `suggestion-${activeSuggestion}` : undefined}
+          />
+          {/* Autocomplete Suggestions */}
+          {showSuggestions && suggestions.length > 0 && (
+            <ul
+              id="autocomplete-list"
+              className="absolute left-0 right-0 bottom-full z-30 bg-zinc-900 border border-zinc-700 rounded-lg max-h-56 overflow-y-auto shadow-lg"
+              style={{ listStyle: 'none', margin: 0, padding: 0 }}
+            >
+              {(() => {
+                // Get the current input value split into words
+                const words = message.trim().split(/\s+/);
+                // If there are words, get the middle word (or nearest to middle)
+                let middleWord = '';
+                if (words.length > 0) {
+                  const midIdx = Math.floor((words.length - 1) / 2);
+                  middleWord = words[midIdx];
+                }
+                // Filter suggestions that include the middle word (case-insensitive)
+                let middleWordSuggestions = [];
+                if (middleWord && middleWord.length > 0) {
+                  middleWordSuggestions = suggestions.filter(s =>
+                    s.toLowerCase().includes(middleWord.toLowerCase())
+                  );
+                }
+                // Remove duplicates if any
+                const uniqueSuggestions = Array.from(
+                  new Set([...middleWordSuggestions, ...suggestions])
+                );
+                return uniqueSuggestions.map((suggestion, idx) => (
+                  <li
+                    key={suggestion + idx}
+                    id={`suggestion-${idx}`}
+                    className={`px-4 py-2 cursor-pointer text-sm text-zinc-200 hover:bg-blue-700 transition ${
+                      idx === activeSuggestion ? 'bg-blue-700 text-white' : ''
+                    }`}
+                    onMouseDown={() => handleSuggestionClick(suggestion)}
+                  >
+                    {suggestion}
+                  </li>
+                ));
+              })()}
+            </ul>
+          )}
+        </div>
         <button
           type="submit"
           className="bg-zinc-800 border border-zinc-100/30 text-white size-12 flex items-center justify-center rounded-md hover:bg-blue-700 transition"
