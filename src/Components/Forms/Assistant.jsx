@@ -24,7 +24,7 @@ function Assistant() {
     e.preventDefault();
     setStatus('loading');
     try {
-      const response = await fetch('http://localhost:1000/postassistant', {
+      const response = await fetch('https://server-01-v2cx.onrender.com/postassistant', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

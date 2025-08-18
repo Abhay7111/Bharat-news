@@ -247,7 +247,7 @@ const VoiceAssistant = () => {
 
     const fetchData = async () => {
       try {
-        const res = await axios.get('http://localhost:1000/getassistant');
+        const res = await axios.get('https://server-01-v2cx.onrender.com/getassistant');
         setData(Array.isArray(res.data) ? res.data : []);
         setLoading(false);
         // If data loads before 5s, clear the timer and don't speak fallback
