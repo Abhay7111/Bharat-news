@@ -317,7 +317,7 @@ const VoiceAssistant = () => {
   };
 
   return (
-    <div className="h-full w-full bg-zinc-800 flex flex-col justify-end p-4">
+    <div className="h-full w-full bg-zinc-800 flex flex-col justify-end p-10">
       {error && (
         <div className="mb-2 text-red-400 bg-transparent rounded px-3 py-2 text-lg">{error}</div>
       )}

@@ -51,7 +51,7 @@ function Assistant() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-0 sm:p-8 bg-gradient-to-br from-blue-950 via-zinc-900 to-zinc-800 rounded-3xl shadow-2xl mt-10 border border-blue-900/40 relative overflow-hidden">
+    <div className="w-full p-7 max-w-2xl mx-auto bg-gradient-to-br from-blue-950 via-zinc-900 to-zinc-800 rounded-3xl shadow-2xl mt-10 border border-blue-900/40 relative overflow-hidden">
       {/* Decorative background */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute -top-20 -left-20 w-72 h-72 bg-blue-700/20 rounded-full blur-3xl animate-pulse" />
