@@ -8,6 +8,7 @@ import Chat from './Components/Pages/Chat/Chat';
 import Allnews from './Components/Small-components/Allnews';
 import Weather from './Components/Pages/weather';
 import Mostviews_citys from './Components/Small-components/Mostviews-citys';
+import Assistant from './Components/Forms/Assistant';
 
 const routers = createBrowserRouter([
 {  path: '/',  element: <Home/>, children: [
@@ -17,7 +18,10 @@ const routers = createBrowserRouter([
       {path: 'wether', element: <Weather/>},
       {path: '*', element: 'Error 402'}
     ]},
-    {path:'/chat', element: <Chat/>},
+    {path:'/chat', children: [
+      {path: '',  element: <Chat/>,},
+      {path: 'post', element: <Assistant/>},
+    ]},
     {path:'/notification', element: 'notification'},
     {path:'/add-new', element: 'new news'},
     {path:'/Profile', element: 'Profile'},
