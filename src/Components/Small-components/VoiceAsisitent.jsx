@@ -13,24 +13,24 @@ const VoiceAssistant = () => {
   const [error, setError] = useState('');
   const [googleSearchQuery, setGoogleSearchQuery] = useState('');
   const [showGoogleButton, setShowGoogleButton] = useState(false);
-  const hasWishedRef = useRef(false); // Prevent wishMe from running twice
+  const hasWishedRef = useRef(false);
 
-  // For showing categories when user types "/"
   const [showCategory, setShowCategory] = useState(false);
   const [categories, setCategories] = useState([]);
 
-  // Timer ref for API loading fallback
   const apiTimeoutRef = useRef(null);
   const apiFallbackSpokenRef = useRef(false);
+
+  // Track if data has been loaded at least once
+  const dataLoadedRef = useRef(false);
 
   // Helper: get a voice, fallback to default if not found
   const getVoice = () => {
     const voices = window.speechSynthesis.getVoices();
-    // Try to find a suitable English voice
     let voice =
-      voices.find(v => v.lang === 'en-IN' && v.name.includes('Google')) ||
+      voices.find(v => v.lang === 'en-IN' && v.name && v.name.toLowerCase().includes('google')) ||
       voices.find(v => v.lang === 'en-IN') ||
-      voices.find(v => v.lang.startsWith('en')) ||
+      voices.find(v => v.lang && v.lang.startsWith('en')) ||
       voices[0] ||
       null;
     return voice;
@@ -39,7 +39,6 @@ const VoiceAssistant = () => {
   // Speak function with fallback for voices not loaded
   const speak = (text) => {
     if (!window.speechSynthesis) return;
-    // Prevent double speaking by cancelling any ongoing speech
     window.speechSynthesis.cancel();
 
     const utterance = new window.SpeechSynthesisUtterance(text);
@@ -48,19 +47,13 @@ const VoiceAssistant = () => {
     utterance.volume = 1;
     utterance.lang = 'en-IN';
 
-    // Sometimes voices are not loaded immediately
     const setAndSpeak = () => {
       utterance.voice = getVoice();
-      utterance.onend = () => {
-        if (btnRef.current) {
-          btnRef.current.click();
-        }
-      };
+      utterance.onend = () => {};
       window.speechSynthesis.speak(utterance);
     };
 
     if (window.speechSynthesis.getVoices().length === 0) {
-      // Remove previous handler to avoid multiple triggers
       window.speechSynthesis.onvoiceschanged = null;
       window.speechSynthesis.onvoiceschanged = setAndSpeak;
     } else {
@@ -83,13 +76,42 @@ const VoiceAssistant = () => {
   };
 
   // Main command handler
-  const takeCommand = (msg) => {
+  const takeCommand = async (msg) => {
     setListening(false);
     const lowerMsg = msg.trim().toLowerCase();
     setChatHistory(prev => [...prev, { type: 'user', text: msg }]);
 
+    // Always fetch data from API before processing the command
+    let latestData = [];
+    try {
+      const res = await axios.get('https://server-01-v2cx.onrender.com/getassistant');
+      latestData = Array.isArray(res.data) ? res.data : [];
+      setData(latestData); // update state for UI/category list
+    } catch (err) {
+      setError('Failed to load assistant data for voice command.');
+      speak('Sorry, I failed to load my brain.');
+      // Fallback: Google search
+      const cleaned = lowerMsg.replace(/shipra|shifra/gi, '').trim();
+      const fallbackText = cleaned
+        ? 'This is what I found on Google: ' + cleaned
+        : "Sorry, I didn't understand. Please try again.";
+      speak(fallbackText);
+      setChatHistory(prev => [...prev, { type: 'bot', text: fallbackText }]);
+      if (cleaned) {
+        setGoogleSearchQuery(cleaned);
+        setShowGoogleButton(true);
+      } else {
+        setGoogleSearchQuery('');
+        setShowGoogleButton(false);
+      }
+      return;
+    }
+
     // Try to match exact question
-    const found = data.find(item => lowerMsg === (item.question || '').toLowerCase());
+    const found = latestData.find(item =>
+      item.question &&
+      lowerMsg.includes(item.question.toLowerCase()) // Loose match
+    );
 
     if (found) {
       const { answer, link, image, file, open } = found;
@@ -108,7 +130,7 @@ const VoiceAssistant = () => {
       if (open && link) {
         window.open(link, '_blank');
       }
-      setGoogleSearchQuery(''); // Clear any previous Google search
+      setGoogleSearchQuery('');
       setShowGoogleButton(false);
       return;
     }
@@ -159,8 +181,25 @@ const VoiceAssistant = () => {
   };
 
   // Start listening
-  const handleStartListening = () => {
-    if (!recognitionRef.current) return;
+  const handleStartListening = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      // Always fetch data from API when starting to listen
+      const res = await axios.get('https://server-01-v2cx.onrender.com/getassistant');
+      setData(Array.isArray(res.data) ? res.data : []);
+      setLoading(false);
+      dataLoadedRef.current = true;
+    } catch (err) {
+      setError('Failed to load assistant data for voice recognition.');
+      setLoading(false);
+      speak('Sorry, I failed to load my brain.');
+      return;
+    }
+    if (!recognitionRef.current) {
+      setError('Speech recognition is not available.');
+      return;
+    }
     setListening(true);
     try {
       recognitionRef.current.start();
@@ -174,7 +213,6 @@ const VoiceAssistant = () => {
   const handleInputSubmit = (e) => {
     e.preventDefault();
     if (message.trim()) {
-      // If user input is just "/", do not send as command, just show categories
       if (message.trim() === '/') {
         setShowCategory(true);
         return;
@@ -201,7 +239,7 @@ const VoiceAssistant = () => {
       wishMe();
     }
 
-    const SpeechRecognition =
+    let SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
@@ -209,19 +247,37 @@ const VoiceAssistant = () => {
       return;
     }
 
-    const recognition = new SpeechRecognition();
+    // Fix: Always create a new instance and assign to ref
+    let recognition;
+    try {
+      recognition = new SpeechRecognition();
+    } catch (e) {
+      setError('Speech recognition could not be initialized.');
+      return;
+    }
     recognition.lang = 'en-IN';
     recognition.continuous = false;
     recognition.interimResults = false;
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      takeCommand(transcript);
+      setListening(false);
+      if (event.results && event.results[0] && event.results[0][0]) {
+        const transcript = event.results[0][0].transcript;
+        // Use async takeCommand to ensure API fetch
+        takeCommand(transcript);
+      }
     };
 
     recognition.onerror = (event) => {
       setListening(false);
-      setError('Voice recognition error: ' + (event.error || 'Unknown error'));
+      // Chrome bug: "no-speech" error fires if mic permission denied or no input
+      if (event.error === 'not-allowed' || event.error === 'denied') {
+        setError('Microphone access denied. Please allow microphone permission.');
+      } else if (event.error === 'no-speech') {
+        setError('No speech detected. Please try again.');
+      } else {
+        setError('Voice recognition error: ' + (event.error || 'Unknown error'));
+      }
     };
 
     recognition.onend = () => {
@@ -229,6 +285,16 @@ const VoiceAssistant = () => {
     };
 
     recognitionRef.current = recognition;
+
+    // Clean up on unmount
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current = null;
+      }
+    };
     // eslint-disable-next-line
   }, []);
 
@@ -237,7 +303,6 @@ const VoiceAssistant = () => {
     apiFallbackSpokenRef.current = false;
     setLoading(true);
 
-    // Set up a 5s timer to speak fallback if data not loaded
     apiTimeoutRef.current = setTimeout(() => {
       if (loading && !apiFallbackSpokenRef.current) {
         speak("I'm still trying to fix it");
@@ -250,7 +315,7 @@ const VoiceAssistant = () => {
         const res = await axios.get('https://server-01-v2cx.onrender.com/getassistant');
         setData(Array.isArray(res.data) ? res.data : []);
         setLoading(false);
-        // If data loads before 5s, clear the timer and don't speak fallback
+        dataLoadedRef.current = true;
         if (apiTimeoutRef.current) {
           clearTimeout(apiTimeoutRef.current);
         }
@@ -260,7 +325,6 @@ const VoiceAssistant = () => {
         if (apiTimeoutRef.current) {
           clearTimeout(apiTimeoutRef.current);
         }
-        // Only speak error if not already speaking fallback
         if (!apiFallbackSpokenRef.current) {
           speak('Sorry, I failed to load my brain.');
           apiFallbackSpokenRef.current = true;
@@ -269,7 +333,6 @@ const VoiceAssistant = () => {
     };
     fetchData();
 
-    // Cleanup timer on unmount or rerun
     return () => {
       if (apiTimeoutRef.current) {
         clearTimeout(apiTimeoutRef.current);
@@ -280,7 +343,6 @@ const VoiceAssistant = () => {
   // Extract unique categories from data
   useEffect(() => {
     if (data && data.length > 0) {
-      // Assume each item has a "category" field
       const cats = Array.from(
         new Set(
           data
@@ -317,7 +379,7 @@ const VoiceAssistant = () => {
   };
 
   return (
-    <div className="h-full w-full bg-zinc-800 flex flex-col justify-end p-10">
+    <div className="h-full w-full bg-zinc-800 flex flex-col justify-end p-4">
       {error && (
         <div className="mb-2 text-red-400 bg-transparent rounded px-3 py-2 text-lg">{error}</div>
       )}
@@ -394,7 +456,7 @@ const VoiceAssistant = () => {
 
       {/* Google Search Results */}
       {googleSearchQuery && (
-        <div className="mb-4 w-full max-w-full rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-900" style={{ height: 1000 }}>
+        <div className="mb-4 w-full max-w-full rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-900" style={{ height: 400 }}>
           <iframe
             title="Google Search"
             src={`https://www.bing.com/search?q=${encodeURIComponent(googleSearchQuery)}`}
