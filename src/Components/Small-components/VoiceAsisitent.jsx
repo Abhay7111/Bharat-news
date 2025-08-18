@@ -15,6 +15,14 @@ const VoiceAssistant = () => {
   const [showGoogleButton, setShowGoogleButton] = useState(false);
   const hasWishedRef = useRef(false); // Prevent wishMe from running twice
 
+  // For showing categories when user types "/"
+  const [showCategory, setShowCategory] = useState(false);
+  const [categories, setCategories] = useState([]);
+
+  // Timer ref for API loading fallback
+  const apiTimeoutRef = useRef(null);
+  const apiFallbackSpokenRef = useRef(false);
+
   // Helper: get a voice, fallback to default if not found
   const getVoice = () => {
     const voices = window.speechSynthesis.getVoices();
@@ -166,8 +174,14 @@ const VoiceAssistant = () => {
   const handleInputSubmit = (e) => {
     e.preventDefault();
     if (message.trim()) {
+      // If user input is just "/", do not send as command, just show categories
+      if (message.trim() === '/') {
+        setShowCategory(true);
+        return;
+      }
       takeCommand(message);
       setMessage('');
+      setShowCategory(false);
     }
   };
 
@@ -218,36 +232,94 @@ const VoiceAssistant = () => {
     // eslint-disable-next-line
   }, []);
 
-  // Fetch assistant data
+  // Fetch assistant data with 5s fallback
   useEffect(() => {
+    apiFallbackSpokenRef.current = false;
+    setLoading(true);
+
+    // Set up a 5s timer to speak fallback if data not loaded
+    apiTimeoutRef.current = setTimeout(() => {
+      if (loading && !apiFallbackSpokenRef.current) {
+        speak("I'm still trying to fix it");
+        apiFallbackSpokenRef.current = true;
+      }
+    }, 5000);
+
     const fetchData = async () => {
       try {
         const res = await axios.get('http://localhost:1000/getassistant');
         setData(Array.isArray(res.data) ? res.data : []);
         setLoading(false);
+        // If data loads before 5s, clear the timer and don't speak fallback
+        if (apiTimeoutRef.current) {
+          clearTimeout(apiTimeoutRef.current);
+        }
       } catch (error) {
         setError('Failed to load assistant data.');
         setLoading(false);
-        // Only speak error if not already speaking
-        speak('Sorry, I failed to load my brain.');
+        if (apiTimeoutRef.current) {
+          clearTimeout(apiTimeoutRef.current);
+        }
+        // Only speak error if not already speaking fallback
+        if (!apiFallbackSpokenRef.current) {
+          speak('Sorry, I failed to load my brain.');
+          apiFallbackSpokenRef.current = true;
+        }
       }
     };
     fetchData();
+
+    // Cleanup timer on unmount or rerun
+    return () => {
+      if (apiTimeoutRef.current) {
+        clearTimeout(apiTimeoutRef.current);
+      }
+    };
   }, []);
+
+  // Extract unique categories from data
+  useEffect(() => {
+    if (data && data.length > 0) {
+      // Assume each item has a "category" field
+      const cats = Array.from(
+        new Set(
+          data
+            .map(item => item.category)
+            .filter(Boolean)
+        )
+      );
+      setCategories(cats);
+    }
+  }, [data]);
+
+  // Show/hide category list when user types "/"
+  useEffect(() => {
+    if (message.trim() === '/') {
+      setShowCategory(true);
+    } else {
+      setShowCategory(false);
+    }
+  }, [message]);
 
   // Scroll to bottom on new chat
   useEffect(() => {
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chatHistory, googleSearchQuery]);
+  }, [chatHistory, googleSearchQuery, showCategory]);
 
   if (loading) return <div className="text-white p-4">Loading assistant data...</div>;
+
+  // Handle category click: fill input with category name and hide list
+  const handleCategoryClick = (cat) => {
+    setMessage(cat + ' ');
+    setShowCategory(false);
+  };
 
   return (
     <div className="h-full w-full bg-zinc-800 flex flex-col justify-end p-4">
       {error && (
-        <div className="mb-2 text-red-400 bg-zinc-900 rounded px-3 py-2 text-sm">{error}</div>
+        <div className="mb-2 text-red-400 bg-transparent rounded px-3 py-2 text-lg">{error}</div>
       )}
       {/* Chat History */}
       <div className="flex flex-col gap-2 overflow-y-auto h-full mb-4 scroll-smooth">
@@ -299,6 +371,27 @@ const VoiceAssistant = () => {
         <div ref={chatEndRef} />
       </div>
 
+      {/* Category List */}
+      {showCategory && categories.length > 0 && (
+        <div className="mb-2 w-full max-w-full rounded-xl overflow-hidden border border-zinc-700 bg-zinc-900 shadow-lg z-10">
+          <div className="p-3">
+            <div className="mb-2 text-cyan-300 font-semibold text-sm">Categories</div>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat, idx) => (
+                <button
+                  key={cat + idx}
+                  type="button"
+                  onClick={() => handleCategoryClick(cat)}
+                  className="bg-zinc-700 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs transition"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Google Search Results */}
       {googleSearchQuery && (
         <div className="mb-4 w-full max-w-full rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-900" style={{ height: 1000 }}>
@@ -320,13 +413,14 @@ const VoiceAssistant = () => {
       )}
 
       {/* Input & Buttons */}
-      <form onSubmit={handleInputSubmit} className="flex gap-2 w-full">
+      <form onSubmit={handleInputSubmit} className="flex gap-2 w-full relative">
         <input
           type="text"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Ask a question..."
           className="flex-1 p-3 border border-gray-300/30 text-white bg-zinc-800 rounded-md focus:outline-none focus:ring focus:ring-zinc-500"
+          autoComplete="off"
         />
         <button
           type="submit"
